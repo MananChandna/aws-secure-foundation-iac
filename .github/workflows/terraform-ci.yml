@@ -1,10 +1,5 @@
-# Name of the workflow, which will be displayed in the "Actions" tab of your GitHub repository.
 name: 'Terraform CI: Validate and Plan'
 
-# --- Trigger Conditions ---
-# This workflow will automatically run on two conditions:
-# 1. When code is pushed to the 'main' branch.
-# 2. When a pull request is opened or updated that targets the 'main' branch.
 on:
   push:
     branches:
@@ -13,53 +8,40 @@ on:
     branches:
       - main
 
-# --- Jobs ---
-# A workflow is made up of one or more jobs that run in parallel or sequentially.
 jobs:
-  # This job is named 'terraform'.
   terraform:
-    # A friendly name for the job that will be displayed in the GitHub UI.
     name: 'Terraform Infrastructure Validation'
-    
-    # The type of virtual machine to run the job on. 'ubuntu-latest' is a standard choice.
     runs-on: ubuntu-latest
 
-    # --- Steps ---
-    # A job contains a sequence of tasks called steps.
     steps:
-      # Step 1: Check out the code from your repository
-      # This action downloads your 'main.tf' file into the runner.
       - name: Checkout
         uses: actions/checkout@v3
 
-      # Step 2: Set up Terraform
-      # This action, provided by HashiCorp, installs a specific version of Terraform.
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
-          terraform_version: 1.5.0 # Specify a version for consistency
+          terraform_version: 1.5.0
 
-      # Step 3: Configure AWS Credentials
-      # This action securely configures the AWS credentials using the secrets we created earlier.
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ap-south-1 # The region specified in your main.tf
+          aws-region: ap-south-1
 
-      # Step 4: Terraform Init
-      # Initializes the Terraform working directory, downloading the necessary provider plugins.
+      # --- NEW STEP ---
+      # Generate a temporary SSH key pair within the runner for this job.
+      # The private key will be discarded when the job finishes.
+      - name: Generate SSH key
+        run: ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa -N ""
+
       - name: Terraform Init
         run: terraform init
 
-      # Step 5: Terraform Validate
-      # Checks if the configuration is syntactically valid and internally consistent.
       - name: Terraform Validate
         run: terraform validate
 
-      # Step 6: Terraform Plan
-      # Creates an execution plan to preview the changes Terraform will make to your infrastructure.
-      # This is the most important testing step.
+      # --- MODIFIED STEP ---
+      # Pass the content of the generated public key to the Terraform plan command.
       - name: Terraform Plan
-        run: terraform plan -input=false
+        run: terraform plan -input=false -var="public_key_content=$(cat ~/.ssh/id_rsa.pub)"

@@ -8,12 +8,23 @@ provider "aws" {
 }
 
 # ---------------------------------------------------------------------------------------------------------------------
+# VARIABLES
+# ---------------------------------------------------------------------------------------------------------------------
+
+variable "public_key_content" {
+  description = "Content of the SSH public key to be used for the EC2 instances."
+  type        = string
+  # No default value, it must be provided during plan/apply.
+}
+
+
+# ---------------------------------------------------------------------------------------------------------------------
 # VPC (Virtual Private Cloud)
 # ---------------------------------------------------------------------------------------------------------------------
 
 resource "aws_vpc" "main" {
-  cidr_block = "10.0.0.0/16"
-  enable_dns_support = true
+  cidr_block           = "10.0.0.0/16"
+  enable_dns_support   = true
   enable_dns_hostnames = true
 
   tags = {
@@ -27,9 +38,9 @@ resource "aws_vpc" "main" {
 # ---------------------------------------------------------------------------------------------------------------------
 
 resource "aws_subnet" "public_a" {
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = "10.0.1.0/24"
-  availability_zone = "ap-south-1a"
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = "10.0.1.0/24"
+  availability_zone       = "ap-south-1a"
   map_public_ip_on_launch = true
 
   tags = {
@@ -38,9 +49,9 @@ resource "aws_subnet" "public_a" {
 }
 
 resource "aws_subnet" "public_b" {
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = "10.0.2.0/24"
-  availability_zone = "ap-south-1b"
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = "10.0.2.0/24"
+  availability_zone       = "ap-south-1b"
   map_public_ip_on_launch = true
 
   tags = {
@@ -96,7 +107,7 @@ resource "aws_nat_gateway" "main" {
   tags = {
     Name = "main-nat-gateway"
   }
-  
+
   depends_on = [aws_internet_gateway.main]
 }
 
@@ -205,15 +216,16 @@ resource "aws_security_group" "private_instance" {
 
 resource "aws_key_pair" "deployer" {
   key_name   = "deployer-key"
-  public_key = file("~/.ssh/id_rsa.pub") # Assumes key is at ~/.ssh/id_rsa.pub
+  # Use the content of the public key from a variable instead of a file
+  public_key = var.public_key_content
 }
 
 resource "aws_instance" "bastion" {
-  ami                         = "ami-0f5ee92e2d63afc18"
-  instance_type               = "t2.micro"
-  subnet_id                   = aws_subnet.public_a.id
-  key_name                    = aws_key_pair.deployer.key_name
-  vpc_security_group_ids      = [aws_security_group.bastion.id]
+  ami                    = "ami-0f5ee92e2d63afc18"
+  instance_type          = "t2.micro"
+  subnet_id              = aws_subnet.public_a.id
+  key_name               = aws_key_pair.deployer.key_name
+  vpc_security_group_ids = [aws_security_group.bastion.id]
   # associate_public_ip_address is handled by map_public_ip_on_launch in the subnet
 
   tags = {
